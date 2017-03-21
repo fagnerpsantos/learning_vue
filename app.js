@@ -37,35 +37,17 @@ var menuComponent = Vue.extend({
 	},
 	methods: {
 		showView: function(id){
-			this.$root.$children[0].activedView = id;
+			this.$dispatch('change-activedview', id);
 			if(id == 1){
-				this.$root.$children[0].formType = 'insert';
+				this.$dispatch('change-formtype', 'insert');
 			}
 		},
 	}
 });
 
-Vue.component('menu-component', menuComponent);
 
 var billListComponent = Vue.extend({
 	template: `
-		<style type="text/css">
-			.pago{
-				color: green;
-			}
-			.nao-pago{
-				color: red;
-			}
-			.red{
-				color: red;
-			}
-			.green{
-				color: green;
-			}
-			.gray{
-				color: gray;
-			}
-		</style>
 	<table border="1" cellpadding="10">
 		<thead>
 			<tr>
@@ -107,18 +89,22 @@ var billListComponent = Vue.extend({
 	},
 	methods:{
 		loadBill: function(bill){
-			this.$parent.bill = bill;
-			this.$parent.activedView = 1;
-			this.$parent.formType = 'update';
+			this.$dispatch('change-bill', bill);
+			this.$dispatch('change-activedview', 1);
+			this.$dispatch('change-formtype', 'update');
 		},
 		deleteBill: function(bill){
 			if(confirm('Deseja excluir esta conta?')){
 				this.bills.$remove(bill);
 			}
 		}
+	},
+	events:{
+		'new-bill': function(bill){
+			this.bills.push(bill);
+		}
 	}
 });
-Vue.component('bill-list-component', billListComponent);
 
 var billCreateComponent = Vue.extend({
 	template: `
@@ -139,23 +125,29 @@ var billCreateComponent = Vue.extend({
 			<input type="submit" value="Enviar"/>
 		</form>
 	`,
-	props: ['bill', 'formType'],
 	data: function(){
 		return {
+			formType: 'insert',
 			names:[
 				'Conta de Luz',
 				'Conta de Água',
 				'Conta de Internet',
 				'Conta de Cartão',
 				'Conta de Aluguel',
-			]
+			],
+			bill: {
+				date_due: '',
+				name: '',
+				value: 0,
+				done: false
+			}
 		};
 	},
 
 	methods: {
 		submit: function(){
 			if(this.formType == 'insert'){
-				this.bills.push(this.bill);
+				this.$dispatch('new-bill', this.bill);
 			}
 			this.bill = {
 				date_due: '',
@@ -163,59 +155,97 @@ var billCreateComponent = Vue.extend({
 				value: 0,
 				done: false
 			};
-			this.activedView = 0;
+			this.$dispatch('change-activedview', 0);
+		}
+	},
+	events:{
+		'change-formtype': function(formType){
+			this.formType = formType;
+		},
+		'change-bill': function(bill){
+			this.bill = bill;
 		}
 	}
 });
-Vue.component('bill-create-component', billCreateComponent);
 
 var appComponent = Vue.extend({
-	template: `		
+	components:{
+		'menu-component': menuComponent,
+		'bill-list-component': billListComponent,
+		'bill-create-component': billCreateComponent
+	},
+	template: `	
+	<style type="text/css">
+			.pago{
+				color: green;
+			}
+			.nao-pago{
+				color: red;
+			}
+			.red{
+				color: red;
+			}
+			.green{
+				color: green;
+			}
+			.gray{
+				color: gray;
+			}
+		</style>	
 		<h1>{{title}}</h1>
 	<h3 :class="{'gray': status === false, 'green': status === 0, 'red': status > 0}">{{status | statusGeneral}}</h3>
 	<menu-component></menu-component>
-	<div v-if="activedView == 0">
-		<bill-list-component></bill-list-component>
+	<div v-show="activedView == 0">
+		<bill-list-component v-ref:bill-list-component></bill-list-component>
 	</div>
 
-	<div v-if="activedView == 1">
-		<bill-create-component v-bind:bill="bill" v-bind:form-type="formType"></bill-create-component>
+	<div v-show="activedView == 1">
+		<bill-create-component v-bind:bill.sync="bill"></bill-create-component>
 
 	</div>
 `,
 	data: function(){
 		return {
-			test: '',		
 			title: "Contas a pagar",
-
-			activedView: 0,
-			formType: 'insert',
-			bill: {
+			activedView: 0,			
+		bill: {
 				date_due: '',
 				name: '',
 				value: 0,
 				done: false
 			},
-			
 		};
 	},
 	computed: {
 		status: function(){
-			if(!this.bills.length){
+			var billListComponent = this.$refs.billListComponent;
+			if(!billListComponent.bills.length){
 				return false;
 			}
 			var count = 0;
-			for(var i in this.bills){
-				if(!this.bills[i].done){
+			for(var i in billListComponent.bills){
+				if(!billListComponent.bills[i].done){
 					count++;
 				}
 			}
 			return count;
 		}
 	},
-	methods: {
-		
-		
+	methods: {	
+	},
+	events:{
+		'change-activedview': function(activedView){
+			this.activedView = activedView;
+		},
+		'change-formtype': function(formType){
+			this.$broadcast('change-formtype', formType);
+		},
+		'new-bill': function(bill){
+			this.$broadcast('new-bill', bill);
+		},
+		'change-bill': function(bill){
+			this.$broadcast('change-bill', bill);
+		}
 	}
 });
 
